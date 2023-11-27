@@ -319,6 +319,8 @@ func (u *Unpacker) unpack(
 			case <-fetchC[i-fetchOffset]:
 			}
 		}
+		// do not do the snapshotter prepare and just return
+		return nil
 
 		parent := identity.ChainID(chain)
 		chain = append(chain, diffIDs[i])
