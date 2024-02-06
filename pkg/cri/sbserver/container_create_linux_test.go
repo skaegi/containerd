@@ -25,18 +25,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/container-orchestrated-devices/container-device-interface/pkg/cdi"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/contrib/apparmor"
 	"github.com/containerd/containerd/contrib/seccomp"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/platforms"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
+	"tags.cncf.io/container-device-interface/pkg/cdi"
 
 	"github.com/containerd/containerd/pkg/cap"
 	"github.com/containerd/containerd/pkg/cri/annotations"
@@ -1398,7 +1399,7 @@ additional-group-for-root:x:22222:root
 			require.NoError(t, err)
 
 			spec.Root.Path = tempRootDir // simulating /etc/{passwd, group}
-			opts, err := c.containerSpecOpts(containerConfig, imageConfig)
+			opts, err := c.platformSpecOpts(platforms.DefaultSpec(), containerConfig, imageConfig)
 			require.NoError(t, err)
 			oci.ApplyOpts(ctx, nil, testContainer, spec, opts...)
 
