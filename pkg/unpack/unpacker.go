@@ -284,36 +284,6 @@ func (u *Unpacker) unpack(
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	doFetchFn := func(i int) error {
-		if fetchErr == nil {
-			fetchErr = make(chan error, 1)
-			fetchOffset = i
-			fetchC = make([]chan struct{}, len(layers)-fetchOffset)
-			for i := range fetchC {
-				fetchC[i] = make(chan struct{})
-			}
-
-			go func(i int) {
-				err := u.fetch(ctx, h, layers[i:], fetchC)
-				if err != nil {
-					fetchErr <- err
-				}
-				close(fetchErr)
-			}(i)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-fetchErr:
-			if err != nil {
-				return err
-			}
-		case <-fetchC[i-fetchOffset]:
-		}
-		return nil
-	}
-
 	doUnpackFn := func(i int, desc ocispec.Descriptor) error {
 		parent := identity.ChainID(chain)
 		chain = append(chain, diffIDs[i])
@@ -326,14 +296,8 @@ func (u *Unpacker) unpack(
 		defer unlock()
 
 		if _, err := sn.Stat(ctx, chainID); err == nil {
-			if _, err := cs.Info(ctx, desc.Digest); err == nil {
-				// no need to handle
-				return nil
-			} else if errdefs.IsNotFound(err) {
-				return doFetchFn(i)
-			} else {
-				return fmt.Errorf("failed to get content info %s: %w", desc.Digest.String(), err)
-			}
+			// no need to handle
+			return nil
 		} else if !errdefs.IsNotFound(err) {
 			return fmt.Errorf("failed to stat snapshot %s: %w", chainID, err)
 		}
@@ -385,9 +349,33 @@ func (u *Unpacker) unpack(
 			}
 		}
 
-		if err := doFetchFn(i); err != nil {
+		if fetchErr == nil {
+			fetchErr = make(chan error, 1)
+			fetchOffset = i
+			fetchC = make([]chan struct{}, len(layers)-fetchOffset)
+			for i := range fetchC {
+				fetchC[i] = make(chan struct{})
+			}
+
+			go func(i int) {
+				err := u.fetch(ctx, h, layers[i:], fetchC)
+				if err != nil {
+					fetchErr <- err
+				}
+				close(fetchErr)
+			}(i)
+		}
+
+		select {
+		case <-ctx.Done():
 			cleanup.Do(ctx, abort)
-			return err
+			return ctx.Err()
+		case err := <-fetchErr:
+			if err != nil {
+				cleanup.Do(ctx, abort)
+				return err
+			}
+		case <-fetchC[i-fetchOffset]:
 		}
 
 		diff, err := a.Apply(ctx, desc, mounts, unpack.ApplyOpts...)
