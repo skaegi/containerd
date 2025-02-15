@@ -25,11 +25,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 	"text/template"
 
-	exec "golang.org/x/sys/execabs"
+	"github.com/containerd/log"
 )
 
 // NOTE: This code is copied from <github.com/docker/docker/profiles/apparmor>.
@@ -54,10 +55,18 @@ profile {{.Name}} flags=(attach_disconnected,mediate_deleted) {
   umount,
   # Host (privileged) processes may send signals to container processes.
   signal (receive) peer=unconfined,
+  # runc may send signals to container processes.
+  signal (receive) peer=runc,
+  # crun may send signals to container processes.
+  signal (receive) peer=crun,
   # Manager may send signals to container processes.
   signal (receive) peer={{.DaemonProfile}},
   # Container processes may send signals amongst themselves.
   signal (send,receive) peer={{.Name}},
+{{if .RootlessKit}}
+  # https://github.com/containerd/nerdctl/issues/2730
+  signal (receive) peer={{.RootlessKit}},
+{{end}}
 
   deny @{PROC}/* w,   # deny write for all files directly in /proc (not in a subdir)
   # deny write to files not in /proc/<number>/** or /proc/sys/**
@@ -77,6 +86,7 @@ profile {{.Name}} flags=(attach_disconnected,mediate_deleted) {
   deny /sys/fs/c[^g]*/** wklx,
   deny /sys/fs/cg[^r]*/** wklx,
   deny /sys/firmware/** rwklx,
+  deny /sys/devices/virtual/powercap/** rwklx,
   deny /sys/kernel/security/** rwklx,
 
   # allow processes within the container to trace each other,
@@ -90,6 +100,7 @@ type data struct {
 	Imports       []string
 	InnerImports  []string
 	DaemonProfile string
+	RootlessKit   string
 }
 
 func cleanProfileName(profile string) string {
@@ -125,6 +136,16 @@ func loadData(name string) (*data, error) {
 	}
 	p.DaemonProfile = cleanProfileName(string(currentProfile))
 
+	// If we were running in Rootless mode, we could read `/proc/$(cat ${ROOTLESSKIT_STATE_DIR}/child_pid)/exe`,
+	// but `nerdctl apparmor load` has to be executed as the root.
+	// So, do not check ${ROOTLESSKIT_STATE_DIR} (nor EUID) here.
+	p.RootlessKit, err = exec.LookPath("rootlesskit")
+	if err != nil {
+		log.L.WithError(err).Debug("apparmor: failed to determine the RootlessKit binary path")
+		p.RootlessKit = ""
+	}
+	log.L.Debugf("apparmor: RootlessKit=%q", p.RootlessKit)
+
 	return &p, nil
 }
 
@@ -144,7 +165,7 @@ func load(path string) error {
 	return nil
 }
 
-// macrosExists checks if the passed macro exists.
+// macroExists checks if the passed macro exists.
 func macroExists(m string) bool {
 	_, err := os.Stat(path.Join(dir, m))
 	return err == nil

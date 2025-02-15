@@ -15,6 +15,10 @@ The containerd client's `Pull` API with unpacking-mode allows the underlying sna
 Remote snapshotter needs to be plugged into containerd in [the same ways as normal snapshotters](/docs/PLUGINS.md).
 
 ```go
+import (
+	containerd "github.com/containerd/containerd/v2/client"
+)
+
 image, err := client.Pull(ctx, ref,
 	containerd.WithPullUnpack,
 	containerd.WithPullSnapshotter("my-remote-snapshotter"),
@@ -39,7 +43,10 @@ This is useful if the values of these labels are determined statically regardles
 These user-defined labels must be prefixed by `containerd.io/snapshot/`.
 
 ```go
-import "github.com/containerd/containerd/snapshots"
+import (
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/snapshots"
+)
 
 image, err := client.Pull(ctx, ref,
 	containerd.WithPullUnpack,
@@ -61,10 +68,13 @@ Every time the containerd client queries remote snapshot, it passes `Annotations
 These annotations are passed to the snapshotter as user-defined labels.
 The values of annotations can be dynamically added and modified in the handler wrapper.
 Note that annotations must be prefixed by `containerd.io/snapshot/`.
-`github.com/containerd/containerd/pkg/snapshotters` is a handler implementation used by the CRI package, nerdctl and moby.
+`github.com/containerd/containerd/v2/pkg/snapshotters` is a handler implementation used by the CRI package, nerdctl and moby.
 
 ```go
-import "github.com/containerd/containerd/pkg/snapshotters"
+import (
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/pkg/snapshotters"
+)
 
 if _, err := client.Pull(ctx, ref,
 	containerd.WithPullUnpack,
@@ -77,7 +87,7 @@ if _, err := client.Pull(ctx, ref,
 
 The containerd client queries remote snapshots to the underlying remote snapshotter using snapshotter APIs.
 This section describes the high-level overview of how snapshotter APIs are used for remote snapshots functionality, with some piece of pseudo-codes that describe the simplified logic implemented in the containerd client.
-For more details, see [`unpacker.go`](../pkg/unpack/unpacker.go) that implements this logic.
+For more details, see [`unpacker.go`](../core/unpack/unpacker.go) that implements this logic.
 
 During image pull, the containerd client calls `Prepare` API with the label `containerd.io/snapshot.ref`.
 This is a containerd-defined label which contains ChainID that targets a committed snapshot that the client is trying to prepare.

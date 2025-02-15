@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd/integration/images"
+	"github.com/containerd/containerd/v2/integration/images"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,7 +93,7 @@ func TestVolumeCopyUp(t *testing.T) {
 			},
 		},
 		{
-			containerPath: "C:/weird_test_dir",
+			containerPath: "/C:/weird_test_dir",
 			files: []volumeFile{
 				{
 					fileName: "weird_test_file",

@@ -17,22 +17,22 @@
 package commands
 
 import (
-	gocontext "context"
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/containerd/containerd"
-	"github.com/containerd/containerd/errdefs"
-	"github.com/containerd/containerd/log"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/errdefs"
+	"github.com/containerd/log"
 )
 
 type killer interface {
-	Kill(gocontext.Context, syscall.Signal, ...containerd.KillOpts) error
+	Kill(context.Context, syscall.Signal, ...containerd.KillOpts) error
 }
 
 // ForwardAllSignals forwards signals
-func ForwardAllSignals(ctx gocontext.Context, task killer) chan os.Signal {
+func ForwardAllSignals(ctx context.Context, task killer) chan os.Signal {
 	sigc := make(chan os.Signal, 128)
 	signal.Notify(sigc)
 	go func() {
