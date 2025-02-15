@@ -335,7 +335,19 @@ func (i *image) Unpack(ctx context.Context, snapshotterName string, opts ...Unpa
 	for _, layer := range layers {
 		unpacked, err = rootfs.ApplyLayerWithOpts(ctx, layer, chain, sn, a, config.SnapshotOpts, config.ApplyOpts)
 		if err != nil {
-			return fmt.Errorf("apply layer error for %q: %w", i.Name(), err)
+			// check if error is due to missing content and if so repull and retry apply layer
+			if errdefs.IsNotFound(err) {
+				if _, err2 := i.client.Pull(ctx, i.Name()); err2 != nil {
+					// the repull failed -- for now be really aggressive and delete the manifest from the content store
+					// this does not recover the pod if the image is already in use in a different snapshotter
+					i.client.contentStore.Delete(ctx, i.Target().Digest)
+					return fmt.Errorf("removing image manifest after failed repull for %q: %w : %w", i.Name(), err2, err)
+				}
+				unpacked, err = rootfs.ApplyLayerWithOpts(ctx, layer, chain, sn, a, config.SnapshotOpts, config.ApplyOpts)
+			}
+			if err != nil {
+				return fmt.Errorf("apply layer error for %q: %w", i.Name(), err)
+			}
 		}
 
 		if unpacked {
